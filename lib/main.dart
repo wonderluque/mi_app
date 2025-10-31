@@ -1,4 +1,6 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'app/theme.dart';
 
 void main() => runApp(const MyApp());
 
@@ -9,7 +11,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Mi primera app',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.teal),
+      theme: buildTheme(), // 👈 tema claro
+      darkTheme: buildTheme(dark: true), // 👈 tema oscuro
       home: const HomePage(),
     );
   }
