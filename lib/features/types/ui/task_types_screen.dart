@@ -187,8 +187,8 @@ class _TypeFormSheetState extends State<_TypeFormSheet> {
                 return ChoiceChip(
                   selected: selected,
                   label: const Text(''),
-                  selectedColor: Color(c).withOpacity(0.8),
-                  backgroundColor: Color(c).withOpacity(0.35),
+                  selectedColor: Color(c).withValues(alpha: 0.8),
+                  backgroundColor: Color(c).withValues(alpha: 0.35),
                   onSelected: (_) => setState(() => _color = c),
                 );
               }).toList(),

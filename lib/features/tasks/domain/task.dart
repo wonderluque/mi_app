@@ -9,11 +9,15 @@ class Task {
   final bool done;
   final String? typeId;
 
-  /// Nuevo: orden de la lista (persistente)
+  /// Orden persistente (para arrastre)
   final int order;
 
-  /// Nuevo: prioridad (1=Baja, 2=Media, 3=Alta)
+  /// Prioridad (1=Baja, 2=Media, 3=Alta)
   final int priority;
+
+  /// Minutos de antelación del recordatorio respecto a dueDate.
+  /// null = sin recordatorio.
+  final int? reminderMinutes;
 
   Task({
     required this.id,
@@ -24,7 +28,8 @@ class Task {
     this.done = false,
     this.typeId,
     required this.order,
-    this.priority = 2, // por defecto Media
+    this.priority = 2,
+    this.reminderMinutes,
   });
 
   Task copyWith({
@@ -37,6 +42,7 @@ class Task {
     String? typeId,
     int? order,
     int? priority,
+    int? reminderMinutes,
   }) {
     return Task(
       id: id ?? this.id,
@@ -48,6 +54,7 @@ class Task {
       typeId: typeId ?? this.typeId,
       order: order ?? this.order,
       priority: priority ?? this.priority,
+      reminderMinutes: reminderMinutes ?? this.reminderMinutes,
     );
   }
 
@@ -61,13 +68,13 @@ class Task {
         'typeId': typeId,
         'order': order,
         'priority': priority,
+        'reminderMinutes': reminderMinutes,
       };
 
   factory Task.fromMap(Map<String, dynamic> m) {
-    // Compatibilidad: si no hay 'order' porque la tarea es antigua,
-    // usamos 0. Luego en la carga los normalizamos secuencialmente.
     final ord = (m['order'] as num?)?.toInt() ?? 0;
     final prio = (m['priority'] as num?)?.toInt() ?? 2;
+    final rem = (m['reminderMinutes'] as num?)?.toInt();
 
     return Task(
       id: m['id'] as String,
@@ -79,6 +86,7 @@ class Task {
       typeId: m['typeId'] as String?,
       order: ord,
       priority: prio,
+      reminderMinutes: rem,
     );
   }
 

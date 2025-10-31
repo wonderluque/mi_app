@@ -18,6 +18,15 @@ dependencies:
   shared_preferences: ^2.3.2
   uuid: ^4.5.1
 
+  # 👇 NUEVAS para backup/restore
+  path_provider: ^2.1.4
+  file_picker: ^8.1.2
+  share_plus: ^10.0.2
+
+  # notificaciones
+  flutter_local_notifications: ^17.2.2
+  timezone: ^0.9.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

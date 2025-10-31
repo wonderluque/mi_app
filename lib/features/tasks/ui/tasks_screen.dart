@@ -9,6 +9,10 @@ import 'task_form_sheet.dart';
 import '../../types/ui/task_types_screen.dart';
 import '../../types/data/task_types_storage.dart';
 import '../../types/domain/task_type.dart';
+import '../../backup/backup_service.dart';
+import '../../stats/ui/stats_screen.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../../core/notifications/notification_service.dart';
 
 enum TaskFilter { all, pending, done }
 
@@ -31,6 +35,27 @@ class _TasksScreenState extends State<TasksScreen> {
   String? _selectedTypeId;
   DateTimeRange? _dateRangeFilter;
   int? _priorityFilter; // 1,2,3 o null (todas)
+  DateTime? _reminderDateFrom(Task t) {
+    if (t.dueDate == null || t.reminderMinutes == null) return null;
+    return t.dueDate!.subtract(Duration(minutes: t.reminderMinutes!));
+  }
+
+  Future<void> _scheduleIfNeeded(Task t) async {
+    final when = _reminderDateFrom(t);
+    if (when == null) return;
+    // Si la tarea está hecha o la fecha ya pasó, no programamos
+    if (t.done || when.isBefore(DateTime.now())) return;
+    await NotificationService.instance.scheduleTaskReminder(
+      taskId: t.id,
+      title: t.title,
+      body: t.notes,
+      when: when,
+    );
+  }
+
+  Future<void> _cancelIfScheduled(Task t) async {
+    await NotificationService.instance.cancelTaskReminder(t.id);
+  }
 
   @override
   void initState() {
@@ -78,7 +103,8 @@ class _TasksScreenState extends State<TasksScreen> {
       String? notes,
       DateTime? due,
       String? typeId,
-      int priority
+      int priority,
+      int? reminderMinutes
     })?;
 
     if (result != null) {
@@ -89,11 +115,13 @@ class _TasksScreenState extends State<TasksScreen> {
         createdAt: DateTime.now(),
         dueDate: result.due,
         typeId: result.typeId,
-        order: _nextOrder(), // 👈 al final
-        priority: result.priority, // 👈 prioridad elegida
+        order: _nextOrder(),
+        priority: result.priority,
+        reminderMinutes: result.reminderMinutes,
       );
       setState(() => _tasks = [..._tasks, t]);
       await _persist();
+      await _scheduleIfNeeded(t); // 👈 programa notificación
     }
   }
 
@@ -109,7 +137,8 @@ class _TasksScreenState extends State<TasksScreen> {
       String? notes,
       DateTime? due,
       String? typeId,
-      int priority
+      int priority,
+      int? reminderMinutes
     })?;
 
     if (result != null) {
@@ -119,6 +148,7 @@ class _TasksScreenState extends State<TasksScreen> {
         dueDate: result.due,
         typeId: result.typeId,
         priority: result.priority,
+        reminderMinutes: result.reminderMinutes,
       );
       setState(() {
         _tasks = [
@@ -127,24 +157,34 @@ class _TasksScreenState extends State<TasksScreen> {
         ];
       });
       await _persist();
+      // Resetea notificación
+      await _cancelIfScheduled(task);
+      await _scheduleIfNeeded(updated);
     }
   }
 
   Future<void> _toggle(Task task, bool done) async {
+    final old = task;
+    final updated = task.copyWith(done: done);
     setState(() {
       _tasks = [
         for (final t in _tasks)
-          if (t.id == task.id) t.copyWith(done: done) else t,
+          if (t.id == task.id) updated else t,
       ];
     });
     await _persist();
+
+    if (done) {
+      await _cancelIfScheduled(old);
+    } else {
+      await _scheduleIfNeeded(updated);
+    }
   }
 
   Future<void> _delete(Task task) async {
-    setState(() {
-      _tasks = _tasks.where((t) => t.id != task.id).toList();
-    });
+    setState(() => _tasks = _tasks.where((t) => t.id != task.id).toList());
     await _persist();
+    await _cancelIfScheduled(task);
   }
 
   // Reordenar por arrastre
@@ -481,17 +521,72 @@ class _TasksScreenState extends State<TasksScreen> {
             icon: const Icon(Icons.filter_list),
             onPressed: _openFilters,
           ),
-          IconButton(
-            tooltip: 'Configuración',
-            icon: const Icon(Icons.settings),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TaskTypesScreen()),
-              );
-              final ts = await TaskTypesStorage().load();
-              setState(() => _types = ts);
+          PopupMenuButton<String>(
+            tooltip: 'Más opciones',
+            onSelected: (value) async {
+              if (value == 'export') {
+                try {
+                  final res = await BackupService().createExportFile();
+                  if (!context.mounted) return; // 👈 guarda tras await
+                  await Share.shareXFiles([res.xfile],
+                      text: 'Backup de mi_app');
+                  if (!context.mounted) return; // 👈 otro await, otra guarda
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Exportado: ${res.tasksCount} tareas, ${res.typesCount} tipos')),
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error al exportar: $e')),
+                  );
+                }
+              } else if (value == 'import') {
+                final res = await BackupService().pickAndImport();
+                if (!context.mounted) return;
+                if (res.cancelled) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Importación cancelada')),
+                  );
+                } else if (res.error != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(res.error!)),
+                  );
+                } else {
+                  await _load(); // recarga almacenamiento
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Importadas ${res.tasksCount} tareas y ${res.typesCount} tipos')),
+                  );
+                }
+              } else if (value == 'stats') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StatsScreen()),
+                );
+                if (!context.mounted) return;
+                // no hacemos nada más aquí
+              } else if (value == 'types') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TaskTypesScreen()),
+                );
+                if (!context.mounted) return;
+                _types = await TaskTypesStorage().load();
+                if (!context.mounted) return;
+                setState(() {});
+              }
             },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'export', child: Text('Exportar backup')),
+              PopupMenuItem(value: 'import', child: Text('Importar backup')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'stats', child: Text('Estadísticas')),
+              PopupMenuItem(value: 'types', child: Text('Configurar tipos')),
+            ],
           ),
         ],
       ),

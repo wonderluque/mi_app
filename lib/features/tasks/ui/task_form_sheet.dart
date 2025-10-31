@@ -24,6 +24,9 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
   // 1=Baja, 2=Media, 3=Alta
   int _priority = 2;
 
+  // Minutos de antelación: null(sin), 0(a la hora), 15, 60, 1440
+  int? _reminderMinutes;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +37,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
       _due = t.dueDate;
       _selectedTypeId = t.typeId;
       _priority = t.priority;
+      _reminderMinutes = t.reminderMinutes;
     }
     _loadTypes();
   }
@@ -143,6 +147,8 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
             ),
 
             const SizedBox(height: 8),
+
+            // Fecha
             Row(
               children: [
                 Expanded(
@@ -168,6 +174,30 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
                 ),
               ],
             ),
+
+            const SizedBox(height: 8),
+
+            // Recordatorio (requiere dueDate)
+            DropdownButtonFormField<int?>(
+              value: _reminderMinutes,
+              decoration: const InputDecoration(labelText: 'Recordatorio'),
+              items: const [
+                DropdownMenuItem(value: null, child: Text('Sin recordatorio')),
+                DropdownMenuItem(value: 0, child: Text('A la hora')),
+                DropdownMenuItem(value: 15, child: Text('15 min antes')),
+                DropdownMenuItem(value: 60, child: Text('1 h antes')),
+                DropdownMenuItem(value: 1440, child: Text('1 día antes')),
+              ],
+              onChanged: (v) => setState(() => _reminderMinutes = v),
+              // Aviso si elige recordatorio sin fecha
+              validator: (v) {
+                if (v != null && _due == null) {
+                  return 'El recordatorio requiere fecha límite';
+                }
+                return null;
+              },
+            ),
+
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: () {
@@ -177,7 +207,8 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
                     notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
                     due: _due,
                     typeId: _selectedTypeId,
-                    priority: _priority, // 👈 devolvemos prioridad
+                    priority: _priority,
+                    reminderMinutes: _reminderMinutes,
                   ));
                 }
               },
