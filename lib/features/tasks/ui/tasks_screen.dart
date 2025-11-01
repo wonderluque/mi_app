@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'widgets/task_tile.dart';
+import '../../../app/ui/tokens.dart';
 
 import '../data/tasks_storage.dart';
 import '../domain/task.dart';
@@ -594,18 +596,17 @@ class _TasksScreenState extends State<TasksScreen> {
         children: [
           // Buscador arriba
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: const EdgeInsets.fromLTRB(
+                Spacing.md, Spacing.sm, Spacing.md, 0),
             child: TextField(
               onChanged: (v) => setState(() => _query = v),
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Buscar tareas…',
-                filled: true,
-                fillColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Buscar por título o notas…',
               ),
             ),
           ),
+
           const SizedBox(height: 8),
 
           // Lista: Reorderable o Estado vacío
@@ -616,17 +617,18 @@ class _TasksScreenState extends State<TasksScreen> {
           else
             Expanded(
               child: ReorderableListView.builder(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 96),
+                padding:
+                    const EdgeInsets.fromLTRB(Spacing.sm, 0, Spacing.sm, 96),
                 itemCount: list.length,
                 onReorder: _onReorder,
                 proxyDecorator: (child, index, animation) => Material(
-                  elevation: 6,
+                  elevation: Elev.floating,
                   borderRadius: BorderRadius.circular(16),
                   child: child,
                 ),
                 itemBuilder: (context, i) {
                   final task = list[i];
-                  return _TaskTile(
+                  return TaskTile(
                     key: ValueKey('tile-${task.id}'),
                     task: task,
                     type: _findType(task.typeId),
@@ -653,130 +655,31 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final s = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.inbox_outlined, size: 72, color: scheme.outline),
-        const SizedBox(height: 12),
-        Text('Sin tareas todavía',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        Text(
-          'Crea tu primera tarea con el botón de abajo',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: scheme.outline),
+        Container(
+          padding: const EdgeInsets.all(Spacing.lg),
+          decoration: BoxDecoration(
+            color: s.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child:
+              Icon(Icons.inbox_outlined, size: 72, color: s.onSurfaceVariant),
         ),
-      ],
-    );
-  }
-}
-
-class _TaskTile extends StatelessWidget {
-  const _TaskTile({
-    super.key,
-    required this.task,
-    required this.onToggle,
-    required this.onEdit,
-    required this.onDelete,
-    this.type,
-  });
-
-  final Task task;
-  final ValueChanged<bool> onToggle;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final TaskType? type;
-
-  Color _priorityColor(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    switch (task.priority) {
-      case 3:
-        return scheme.error; // Alta → más llamativo
-      case 1:
-        return scheme.outline; // Baja → discreto
-      case 2:
-      default:
-        return scheme.primary; // Media
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final baseSubtitle = task.notes != null || task.dueDate != null
-        ? [
-            if (task.notes != null) task.notes!,
-            if (task.dueDate != null)
-              'Vence: ${task.dueDate!.toLocal().toString().split(" ").first}',
-          ].join(' · ')
-        : null;
-
-    return Card(
-      key: key,
-      child: ListTile(
-        leading: Checkbox(
-          value: task.done,
-          onChanged: (v) => onToggle(v ?? false),
-        ),
-        title: Text(
-          task.title,
-          style: TextStyle(
-            decoration: task.done ? TextDecoration.lineThrough : null,
+        const SizedBox(height: Spacing.md),
+        Text('Todo listo ✨', style: t.titleMedium),
+        const SizedBox(height: Spacing.xs),
+        Opacity(
+          opacity: .85,
+          child: Text(
+            'Crea tu primera tarea con el botón de abajo',
+            style: t.bodyMedium?.copyWith(color: s.onSurfaceVariant),
           ),
         ),
-        subtitle: (baseSubtitle != null || type != null)
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (baseSubtitle != null) Text(baseSubtitle),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: -8,
-                    children: [
-                      // Chip de prioridad
-                      Chip(
-                        label: Text(
-                          switch (task.priority) {
-                            3 => 'Alta',
-                            1 => 'Baja',
-                            _ => 'Media',
-                          },
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        backgroundColor:
-                            _priorityColor(context).withValues(alpha: 0.15),
-                        side: BorderSide(
-                            color:
-                                _priorityColor(context).withValues(alpha: 0.6)),
-                      ),
-                      // Chip de tipo (si existe)
-                      if (type != null)
-                        Chip(
-                          label: Text(type!.name),
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          avatar: CircleAvatar(
-                            backgroundColor: type!.colorAsColor,
-                            radius: 6,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              )
-            : null,
-        trailing: IconButton(
-          tooltip: 'Editar',
-          onPressed: onEdit,
-          icon: const Icon(Icons.edit_outlined),
-        ),
-        onLongPress: onDelete, // atajo: long-press para borrar
-        onTap: onEdit,
-      ),
+      ],
     );
   }
 }
